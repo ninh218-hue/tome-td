@@ -1,10 +1,9 @@
-
 <!doctype html>
 <html lang="vi">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Anime Tower Defense - PNG Online Version</title>
+<title>Anime Tower Defense - GitHub Version</title>
 <style>
   body{margin:0;background:#051022;color:#eaf6ff;font-family:Inter,Arial}
   .wrap{max-width:1100px;margin:18px auto;display:flex;gap:16px;padding:12px}
@@ -27,7 +26,7 @@
   </div>
 
   <div class="panel sidebar">
-    <h3>Anime Tower Defense — PNG Online</h3>
+    <h3>Anime Tower Defense — GitHub Assets</h3>
     <div class="stat">
       <div>Tiền<br><strong id="money">150</strong></div>
       <div>HP<br><strong id="hp">10</strong></div>
@@ -59,22 +58,28 @@
 </div>
 
 <script>
+// ============================
+// LOAD PNG TỪ FOLDER /assets/
+// ============================
 const ASSETS = {
-  map: "https://luutru.nctagency.com/wp-content/uploads/2025/11/3-1.png",
+  map: "assets/map.png",
   towers: [
-    "https://luutru.nctagency.com/wp-content/uploads/2025/11/4-1.png",
-    "https://luutru.nctagency.com/wp-content/uploads/2025/11/5.png",
-    "https://luutru.nctagency.com/wp-content/uploads/2025/11/6.png",
-    "https://luutru.nctagency.com/wp-content/uploads/2025/11/7.png"
+    "assets/tower_lv1.png",
+    "assets/tower_lv2.png",
+    "assets/tower_lv3.png",
+    "assets/tower_lv4.png"
   ],
   enemies: [
-    "https://luutru.nctagency.com/wp-content/uploads/2025/11/12.png",
-    "https://luutru.nctagency.com/wp-content/uploads/2025/11/13.png",
-    "https://luutru.nctagency.com/wp-content/uploads/2025/11/11.png",
-    "https://luutru.nctagency.com/wp-content/uploads/2025/11/14.png"
+    "assets/enemy_1.png",
+    "assets/enemy_2.png",
+    "assets/enemy_3.png",
+    "assets/enemy_4.png"
   ]
 };
 
+// ============================
+// GAME ENGINE
+// ============================
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
@@ -87,18 +92,17 @@ totalImgs = toLoad.length;
 
 toLoad.forEach(src=>{
   const img = new Image();
-  img.crossOrigin = "anonymous";
   img.src = src;
   img.onload = ()=>{ imgs[src]=img; loaded++; if(loaded===totalImgs) init(); };
-  img.onerror = ()=>{ console.error('Load error:',src); loaded++; if(loaded===totalImgs) init(); };
+  img.onerror = ()=>{ console.error("Load lỗi:", src); loaded++; if(loaded===totalImgs) init(); };
 });
 
-// Game state
+// ========= STATE ===========
 const state = { money:150, hp:10, wave:0, running:false, sellMode:false, selectedTowerIdx:0 };
-const logEl = document.getElementById('log');
-function log(t){ const d=document.createElement('div'); d.textContent=t; logEl.prepend(d); }
+function log(t){ const d=document.createElement("div"); d.textContent=t; logEl.prepend(d); }
+const logEl = document.getElementById("log");
 
-// Tower spots
+// ========= SPOTS ===========
 const spotsPercent = [
   {x:0.18,y:0.16},
   {x:0.36,y:0.22},
@@ -107,212 +111,205 @@ const spotsPercent = [
   {x:0.44,y:0.68},
   {x:0.78,y:0.84}
 ];
-
 let spots = [];
-let towers = new Array(spotsPercent.length).fill(null);
-let enemies = [];
+let towers = new Array(6).fill(null);
 
-const enemySize = 64;
-
-// Path
+// ========= PATH ============
 const pathPercent = [
   {x:0.12,y:0.12},{x:0.24,y:0.18},{x:0.36,y:0.28},{x:0.48,y:0.38},
   {x:0.60,y:0.48},{x:0.68,y:0.58},{x:0.78,y:0.70},{x:0.88,y:0.78}
 ];
+function pct(p){ return {x:Math.round(p.x*W), y:Math.round(p.y*H)}; }
 
-function pctToPx(p){ return {x: Math.round(p.x * W), y: Math.round(p.y * H)}; }
+let enemies = [];
+const enemySize = 64;
 
+// ================= INIT ==================
 function init(){
-  spots = spotsPercent.map(p=>pctToPx(p));
-  const spotsList = document.getElementById('spots-list');
+  spots = spotsPercent.map(p=>pct(p));
+
+  const spotsList = document.getElementById("spots-list");
+  spotsList.innerHTML = "";
   spots.forEach((s,i)=>{
-    const el = document.createElement('div'); el.className='spot';
-    el.innerHTML = '<div>Ô '+(i+1)+'</div><div><button data-i="'+i+'">Đặt</button></div>';
-    spotsList.appendChild(el);
+    let div=document.createElement("div");
+    div.className="spot";
+    div.innerHTML=`<div>Ô ${i+1}</div><div><button data-i="${i}">Đặt</button></div>`;
+    spotsList.appendChild(div);
   });
 
-  document.querySelectorAll('#spots-list button').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const i = Number(b.dataset.i);
-      placeTower(i);
-    });
+  document.querySelectorAll("#spots-list button").forEach(btn=>{
+    btn.onclick = ()=> placeTower(Number(btn.dataset.i));
   });
 
-  document.getElementById('select-tower').addEventListener('click', ()=>{
-    state.selectedTowerIdx = (state.selectedTowerIdx+1) % ASSETS.towers.length;
-    document.getElementById('select-tower').textContent = 'Chọn tháp (Lv '+(state.selectedTowerIdx+1)+')';
-  });
+  document.getElementById("select-tower").onclick = ()=>{
+    state.selectedTowerIdx = (state.selectedTowerIdx+1)%4;
+    document.getElementById("select-tower").textContent = "Chọn tháp (Lv " + (state.selectedTowerIdx+1) + ")";
+  };
 
-  document.getElementById('upgrade-btn').addEventListener('click', upgradeTower);
-  document.getElementById('sell-mode').addEventListener('click', toggleSellMode);
-  document.getElementById('start-wave').addEventListener('click', startWave);
+  document.getElementById("upgrade-btn").onclick = upgradeTower;
+  document.getElementById("sell-mode").onclick = ()=>{
+    state.sellMode = !state.sellMode;
+    document.getElementById("sell-mode").textContent =
+      state.sellMode ? "Đang chế độ bán" : "Bật chế độ bán";
+  };
 
-  canvas.addEventListener('click', onCanvasClick);
+  document.getElementById("start-wave").onclick = startWave;
 
-  updateUI();
+  canvas.onclick = onCanvasClick;
+
   requestAnimationFrame(loop);
 }
 
-function getTowerCost(level){ return [0,70,90,120,160][level] || 70; }
+// ============ GAME FUNCTIONS ==============
+function getCost(lv){ return [0,70,90,120,160][lv]; }
 
 function placeTower(i){
-  if(towers[i]){ log('Ô này đã có tháp'); return; }
-  const cost = getTowerCost(1);
-  if(state.money < cost){ log('Không đủ tiền'); return; }
-  towers[i] = { level:1, selected:false };
-  state.money -= cost;
-  updateUI();
-  log('Đặt tháp ô '+(i+1));
+  if(towers[i]){ log("Ô này đã có tháp"); return; }
+  if(state.money < getCost(1)){ log("Không đủ tiền"); return; }
+  towers[i] = {level:1,selected:false};
+  state.money -= getCost(1);
+  updateHUD();
+  log("Đặt tháp ô " + (i+1));
 }
 
 function upgradeTower(){
-  const idx = towers.findIndex(t=>t && t.selected);
-  if(idx === -1){ log('Chưa chọn tháp'); return; }
+  let idx = towers.findIndex(t=>t && t.selected);
+  if(idx<0){ log("Chưa chọn tháp"); return; }
 
-  const t = towers[idx];
-  if(t.level >= 4){ log('Đã tối đa'); return; }
+  let t = towers[idx];
+  if(t.level>=4){ log("Đã tối đa"); return; }
 
-  const cost = 40 * t.level;
-  if(state.money < cost){ log('Không đủ tiền'); return; }
+  let cost = 40*t.level;
+  if(state.money < cost){ log("Không đủ tiền"); return; }
 
   t.level++;
   state.money -= cost;
-  updateUI();
-  log('Upgrade ô '+(idx+1)+' lên Lv '+t.level);
-}
-
-function toggleSellMode(){
-  state.sellMode = !state.sellMode;
-  document.getElementById('sell-mode').textContent =
-    state.sellMode ? "Đang chế độ bán" : "Bật chế độ bán";
+  updateHUD();
+  log(`Upgrade ô ${idx+1} → Lv ${t.level}`);
 }
 
 function onCanvasClick(e){
   const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let mx = e.clientX - rect.left, my = e.clientY - rect.top;
 
-  let found = -1;
-  spots.forEach((s,i)=>{
-    if(Math.hypot(mx-s.x,my-s.y) < 40) found = i;
-  });
+  let clicked = -1;
+  spots.forEach((s,i)=>{ if(Math.hypot(mx-s.x,my-s.y)<40) clicked=i; });
 
-  if(found === -1) return;
+  if(clicked === -1) return;
 
   if(state.sellMode){
-    if(towers[found]){
-      state.money += Math.floor(getTowerCost(towers[found].level)*0.5);
-      towers[found] = null;
-      updateUI();
-      log('Đã bán tháp ô '+(found+1));
+    if(towers[clicked]){
+      state.money += Math.floor(getCost(towers[clicked].level)*0.5);
+      towers[clicked]=null;
+      updateHUD();
+      log("Đã bán tháp");
     }
     return;
   }
 
   towers.forEach(t=>{ if(t) t.selected=false; });
 
-  if(towers[found]){
-    towers[found].selected = true;
-    log('Chọn tháp ô '+(found+1));
+  if(towers[clicked]){
+    towers[clicked].selected = true;
+    log("Chọn tháp ô "+(clicked+1));
   } else {
-    placeTower(found);
+    placeTower(clicked);
   }
 }
 
-let spawnQueue = [];
-let spawnTimer = 0;
-
+// ================== WAVE =======================
+let spawnTimer = 0, spawnQueue=[];
 function startWave(){
   if(state.running) return;
-  state.wave++; state.running = true;
-  updateUI();
+  state.running = true;
+  state.wave++;
+  updateHUD();
 
+  let count = 6 + Math.floor(state.wave*1.2);
   spawnQueue = [];
-  const count = 6 + Math.floor(state.wave * 1.2);
-
   for(let i=0;i<count;i++){
     spawnQueue.push({
-      hp:20 + state.wave*8,
-      speed:0.6 + state.wave*0.03,
-      src: ASSETS.enemies[i % ASSETS.enemies.length]
+      hp:20+state.wave*8,
+      speed:0.6+state.wave*0.03,
+      src: ASSETS.enemies[i%4]
     });
   }
-
-  log('Wave '+state.wave+' bắt đầu');
+  log("Wave " + state.wave + " bắt đầu");
 }
 
+// ================= UPDATE ======================
 function update(dt){
-  if(state.running && spawnQueue.length>0){
+  if(state.running){
     spawnTimer -= dt;
-    if(spawnTimer <= 0){
-      const e = spawnQueue.shift();
-      const start = pctToPx(pathPercent[0]);
-      enemies.push({hp:e.hp,maxHp:e.hp,speed:e.speed,progress:0,x:start.x,y:start.y,src:e.src});
+    if(spawnQueue.length>0 && spawnTimer<=0){
+      const e=spawnQueue.shift();
+      const start=pct(pathPercent[0]);
+      enemies.push({
+        hp:e.hp,maxHp:e.hp,speed:e.speed,progress:0,x:start.x,y:start.y,src:e.src
+      });
       spawnTimer = 0.8;
     }
-  } else if(state.running && spawnQueue.length===0 && enemies.length===0){
-    state.running = false;
-    state.money += 30 + state.wave*6;
-    updateUI();
-    log('Wave hoàn thành');
+    if(spawnQueue.length===0 && enemies.length===0){
+      state.running = false;
+      state.money += 30 + state.wave*6;
+      updateHUD();
+      log("Wave hoàn thành");
+    }
   }
 
+  // Move enemies
   for(let i=enemies.length-1;i>=0;i--){
-    const en = enemies[i];
-    const seg = Math.floor(en.progress);
-    const next = Math.min(seg+1, pathPercent.length-1);
+    let en=enemies[i];
+    let seg=Math.floor(en.progress);
+    let next=Math.min(seg+1,pathPercent.length-1);
 
-    const sPos = pctToPx(pathPercent[seg]);
-    const ePos = pctToPx(pathPercent[next]);
-    const dist = Math.hypot(ePos.x-sPos.x,ePos.y-sPos.y);
-    const move = en.speed * dt * 80;
-    en.progress += move / dist;
+    let s=pct(pathPercent[seg]);
+    let d=pct(pathPercent[next]);
+    let dist=Math.hypot(d.x-s.x,d.y-s.y);
 
-    const seg2 = Math.floor(en.progress);
-    const next2 = Math.min(seg2+1, pathPercent.length-1);
-    const st = pctToPx(pathPercent[seg2]);
-    const ed = pctToPx(pathPercent[next2]);
-    const p = en.progress - seg2;
-    en.x = st.x + (ed.x-st.x)*p;
-    en.y = st.y + (ed.y-st.y)*p;
+    en.progress += (en.speed*dt*80)/dist;
+
+    let seg2=Math.floor(en.progress);
+    let next2=Math.min(seg2+1,pathPercent.length-1);
+    let s2=pct(pathPercent[seg2]);
+    let d2=pct(pathPercent[next2]);
+    let p=en.progress-seg2;
+
+    en.x = s2.x + (d2.x-s2.x)*p;
+    en.y = s2.y + (d2.y-s2.y)*p;
 
     if(en.progress >= pathPercent.length-1){
       state.hp--;
       enemies.splice(i,1);
-      updateUI();
+      updateHUD();
       log("Quái vào nhà! HP -1");
-
-      if(state.hp <=0){
-        log("Game Over! Đang reset...");
-        resetGame();
-      }
+      if(state.hp<=0){ reset(); }
     }
   }
 
+  // Towers shoot
   towers.forEach((t,i)=>{
     if(!t) return;
-    t.cd = (t.cd||0)-dt;
+    let pos=spots[i];
+    t.cd=(t.cd||0)-dt;
+    let range=120+(t.level-1)*20;
 
-    const towerPos = spots[i];
-    const range = 120 + (t.level-1)*20;
-
-    if(t.cd <= 0){
+    if(t.cd<=0){
       let target=null, best=1e9;
-
       enemies.forEach(en=>{
-        const d=Math.hypot(en.x-towerPos.x,en.y-towerPos.y);
-        if(d<range && d<best){ best=d; target=en; }
+        let d=Math.hypot(en.x-pos.x,en.y-pos.y);
+        if(d<range && d<best){ best=d; target=en;}
       });
 
       if(target){
-        const dmg = 12 + (t.level-1)*8;
+        let dmg=12+(t.level-1)*8;
         target.hp -= dmg;
+        t.cd=0.9/(1+0.08*(t.level-1));
 
-        t.cd = 0.9 / (1 + 0.08*(t.level-1));
-
-        if(target.hp <=0){
+        if(target.hp<=0){
           enemies.splice(enemies.indexOf(target),1);
-          state.money += 10;
-          updateUI();
+          state.money+=10;
+          updateHUD();
           log("Quái chết +10 tiền");
         }
       }
@@ -320,29 +317,11 @@ function update(dt){
   });
 }
 
-let last = performance.now();
-function loop(now){
-  const dt = (now-last)/1000; last = now;
-  update(dt);
-  draw();
-  requestAnimationFrame(loop);
-}
-
+// ================= DRAW ========================
 function draw(){
   ctx.clearRect(0,0,W,H);
 
-  const mapImg = imgs[ASSETS.map];
-  if(mapImg) ctx.drawImage(mapImg,0,0,W,H);
-
-  // Path soft overlay
-  ctx.beginPath();
-  pathPercent.forEach((p,i)=>{
-    const pt=pctToPx(p);
-    if(i===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y);
-  });
-  ctx.lineWidth=8;
-  ctx.strokeStyle="rgba(255,255,255,0.04)";
-  ctx.stroke();
+  ctx.drawImage(imgs[ASSETS.map],0,0,W,H);
 
   spots.forEach((s,i)=>{
     ctx.beginPath();
@@ -350,17 +329,15 @@ function draw(){
     ctx.ellipse(s.x,s.y,34,20,0,0,Math.PI*2);
     ctx.fill();
 
-    if(towers[i]){
-      const t=towers[i];
-      const img=imgs[ ASSETS.towers[t.level-1] ];
-      if(img){
-        const scale=0.6;
-        const w=img.width*scale, h=img.height*scale;
-        ctx.drawImage(img,s.x-w/2,s.y-h/2-6,w,h);
-      }
+    let t=towers[i];
+    if(t){
+      let img=imgs[ ASSETS.towers[t.level-1] ];
+      let w=img.width*0.6, h=img.height*0.6;
+      ctx.drawImage(img,s.x-w/2,s.y-h/2-6,w,h);
+
       if(t.selected){
         ctx.beginPath();
-        ctx.strokeStyle="rgba(255,255,255,0.6)";
+        ctx.strokeStyle="rgba(255,255,255,0.7)";
         ctx.lineWidth=2;
         ctx.ellipse(s.x,s.y,42,26,0,0,Math.PI*2);
         ctx.stroke();
@@ -369,11 +346,10 @@ function draw(){
   });
 
   enemies.forEach(en=>{
-    const img = imgs[en.src];
-    if(img){
-      ctx.drawImage(img, en.x-enemySize/2, en.y-enemySize/2, enemySize, enemySize);
-    }
-    const pct = Math.max(0,en.hp/en.maxHp);
+    let img=imgs[en.src];
+    ctx.drawImage(img,en.x-enemySize/2,en.y-enemySize/2,enemySize,enemySize);
+
+    let pct=en.hp/en.maxHp;
     ctx.fillStyle="rgba(0,0,0,0.6)";
     ctx.fillRect(en.x-24,en.y-36,48,6);
     ctx.fillStyle="rgba(16,185,129,0.95)";
@@ -384,24 +360,35 @@ function draw(){
   ctx.fillRect(8,8,220,34);
   ctx.fillStyle='#cfefff';
   ctx.font='13px Inter';
-  ctx.fillText('Tiền: '+state.money,16,30);
-  ctx.fillText('HP: '+state.hp,110,30);
-  ctx.fillText('Wave: '+state.wave,160,30);
+  ctx.fillText("Tiền: "+state.money,16,30);
+  ctx.fillText("HP: "+state.hp,110,30);
+  ctx.fillText("Wave: "+state.wave,160,30);
 }
 
-function updateUI(){
-  document.getElementById('money').textContent = state.money;
-  document.getElementById('hp').textContent = state.hp;
-  document.getElementById('wave').textContent = state.wave;
+// ================= LOOP ========================
+let last = performance.now();
+function loop(now){
+  const dt=(now-last)/1000; last=now;
+  if(loaded===totalImgs) update(dt);
+  draw();
+  requestAnimationFrame(loop);
 }
 
-function resetGame(){
+// ================= UTILS =======================
+function updateHUD(){
+  document.getElementById("money").textContent=state.money;
+  document.getElementById("hp").textContent=state.hp;
+  document.getElementById("wave").textContent=state.wave;
+}
+
+function reset(){
   state.hp=10;
   state.money=150;
   state.wave=0;
-  towers = new Array(spots.length).fill(null);
+  towers=new Array(6).fill(null);
   enemies=[];
-  updateUI();
+  updateHUD();
+  log("Reset game");
 }
 </script>
 </body>
