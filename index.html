@@ -68,6 +68,12 @@
 // -----------------------------
 const CDN_BASE = 'https://cdn.jsdelivr.net/gh/ninh218-hue/tome-td/assets/';
 const ASSETS = {
+  enemy1Walk: [
+    CDN_BASE + 'enemy_1_walk_1.png',
+    CDN_BASE + 'enemy_1_walk_2.png',
+    CDN_BASE + 'enemy_1_walk_3.png',
+    CDN_BASE + 'enemy_1_walk_4.png'
+  ],
   map: CDN_BASE + 'map.png',
   towers: [
     CDN_BASE + 'tower_lv1.png',
@@ -92,7 +98,7 @@ const W = canvas.width, H = canvas.height;
 
 let images = {};
 let loaded = 0, totalToLoad = 0;
-const loadList = [ASSETS.map, ...ASSETS.towers, ...ASSETS.enemies];
+const loadList = [ASSETS.map, ...ASSETS.towers, ...ASSETS.enemies, ...ASSETS.enemy1Walk];
 totalToLoad = loadList.length;
 
 loadList.forEach(src => {
@@ -123,6 +129,7 @@ const pathPercent = [
 function pct(p){ return { x: Math.round(p.x * W), y: Math.round(p.y * H) }; }
 
 let enemies = [];
+// walking animation added
 const ENEMY_SIZE = 64;
 
 // New systems
@@ -219,7 +226,7 @@ function loop(now){ const dt = (now - last)/1000; last = now; update(dt); draw()
 
 function update(dt){
   // spawn
-  if(state.running && spawnQueue.length>0){ spawnTimer -= dt; if(spawnTimer <= 0){ const e = spawnQueue.shift(); const start = pct(pathPercent[0]); enemies.push({ hp:e.hp, maxHp:e.hp, speed:e.speed, progress:0, x:start.x, y:start.y, src:e.src, ring: (e.src === ASSETS.enemies[2]) }); spawnTimer = 0.8; } }
+  if(state.running && spawnQueue.length>0){ spawnTimer -= dt; if(spawnTimer <= 0){ const e = spawnQueue.shift(); const start = pct(pathPercent[0]); enemies.push({ hp:e.hp, maxHp:e.hp, speed:e.speed, progress:0, x:start.x, y:start.y, src:e.src, ring:(e.src === ASSETS.enemies[2]), animFrame:0, animTimer:0 });, maxHp:e.hp, speed:e.speed, progress:0, x:start.x, y:start.y, src:e.src, ring: (e.src === ASSETS.enemies[2]) }); spawnTimer = 0.8; } }
   else if(state.running && spawnQueue.length===0 && enemies.length===0){ state.running = false; state.money += 30 + state.wave*6; updateHUD(); log('Wave hoàn thành + tiền thưởng'); }
 
   // move enemies
@@ -228,7 +235,11 @@ function update(dt){
     en.progress += (en.speed * dt * 80) / segLen;
     const seg2 = Math.floor(en.progress); const next2 = Math.min(seg2+1, pathPercent.length-1);
     const s2 = pct(pathPercent[seg2]); const e2 = pct(pathPercent[next2]); const p = en.progress - seg2;
-    en.x = s2.x + (e2.x - s2.x) * p; en.y = s2.y + (e2.y - s2.y) * p;
+    en.x = s2.x + (e2.x - s2.x) * p;
+// walking animation phase
+en.walkPhase = (en.walkPhase || 0) + dt * 6;
+const bob = Math.sin(en.walkPhase) * 4;
+en.y = s2.y + (e2.y - s2.y) * p + bob;
     if(en.progress >= pathPercent.length-1){ state.hp--; enemies.splice(i,1); updateHUD(); log('Quái lọt vào base! HP -1'); if(state.hp <= 0){ log('Game Over, reset'); resetGame(); } }
   }
 
@@ -290,7 +301,16 @@ function draw(){
     // enemy shadow
     ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.ellipse(en.x, en.y + 24, 26, 10, 0,0,Math.PI*2); ctx.fill();
 
-    const img = images[en.src]; if(img) ctx.drawImage(img, en.x - ENEMY_SIZE/2, en.y - ENEMY_SIZE/2, ENEMY_SIZE, ENEMY_SIZE);
+    // sprite animation for enemy_1
+    let img;
+    if (en.src === ASSETS.enemies[0]) {
+      en.animTimer += 0.12;
+      if (en.animTimer >= 1) { en.animFrame = (en.animFrame + 1) % ASSETS.enemy1Walk.length; en.animTimer = 0; }
+      img = images[ASSETS.enemy1Walk[en.animFrame]];
+    } else {
+      img = images[en.src];
+    }
+    if(img) ctx.drawImage(img, en.x - ENEMY_SIZE/2, en.y - ENEMY_SIZE/2, ENEMY_SIZE, ENEMY_SIZE);
 
     // hp bar
     const pct = Math.max(0, en.hp / en.maxHp);
