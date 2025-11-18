@@ -304,7 +304,7 @@ function draw(){
     // sprite animation for enemy_1
     let img;
     if (en.src === ASSETS.enemies[0]) {
-      en.animTimer += 0.12;
+      en.animTimer += dt * 10; // speed up animation based on dt
       if (en.animTimer >= 1) { en.animFrame = (en.animFrame + 1) % ASSETS.enemy1Walk.length; en.animTimer = 0; }
       img = images[ASSETS.enemy1Walk[en.animFrame]];
     } else {
