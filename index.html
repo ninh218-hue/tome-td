@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Anime Tower Defense - GitHub Version</title>
+<title>Anime Tower Defense — jsDelivr CDN</title>
 <style>
   body{margin:0;background:#051022;color:#eaf6ff;font-family:Inter,Arial}
   .wrap{max-width:1100px;margin:18px auto;display:flex;gap:16px;padding:12px}
@@ -26,7 +26,7 @@
   </div>
 
   <div class="panel sidebar">
-    <h3>Anime Tower Defense — GitHub Assets</h3>
+    <h3>Anime Tower Defense — CDN Version</h3>
     <div class="stat">
       <div>Tiền<br><strong id="money">150</strong></div>
       <div>HP<br><strong id="hp">10</strong></div>
@@ -58,51 +58,52 @@
 </div>
 
 <script>
-// ============================
-// LOAD PNG TỪ FOLDER /assets/
-// ============================
+// ===========================
+// LOAD PNG TỪ jsDelivr CDN
+// ===========================
+const CDN = "https://cdn.jsdelivr.net/gh/ninh218-hue/tome-td/assets/";
+
 const ASSETS = {
-  map: "assets/map.png",
+  map: CDN + "map.png",
   towers: [
-    "assets/tower_lv1.png",
-    "assets/tower_lv2.png",
-    "assets/tower_lv3.png",
-    "assets/tower_lv4.png"
+    CDN + "tower_lv1.png",
+    CDN + "tower_lv2.png",
+    CDN + "tower_lv3.png",
+    CDN + "tower_lv4.png"
   ],
   enemies: [
-    "assets/enemy_1.png",
-    "assets/enemy_2.png",
-    "assets/enemy_3.png",
-    "assets/enemy_4.png"
+    CDN + "enemy_1.png",
+    CDN + "enemy_2.png",
+    CDN + "enemy_3.png",
+    CDN + "enemy_4.png"
   ]
 };
 
-// ============================
-// GAME ENGINE
-// ============================
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+// ===========================
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 const W = canvas.width, H = canvas.height;
 
 let imgs = {};
-let loaded = 0, totalImgs = 0;
+let loaded = 0, total = 0;
 
 const toLoad = [ASSETS.map, ...ASSETS.towers, ...ASSETS.enemies];
-totalImgs = toLoad.length;
+total = toLoad.length;
 
-toLoad.forEach(src=>{
+toLoad.forEach(src => {
   const img = new Image();
+  img.crossOrigin = "anonymous";
   img.src = src;
-  img.onload = ()=>{ imgs[src]=img; loaded++; if(loaded===totalImgs) init(); };
-  img.onerror = ()=>{ console.error("Load lỗi:", src); loaded++; if(loaded===totalImgs) init(); };
+  img.onload = () => { imgs[src] = img; loaded++; if(loaded===total) init(); };
+  img.onerror = () => { console.error("Load lỗi:", src); loaded++; if(loaded===total) init(); };
 });
 
-// ========= STATE ===========
+// GAME STATE
 const state = { money:150, hp:10, wave:0, running:false, sellMode:false, selectedTowerIdx:0 };
-function log(t){ const d=document.createElement("div"); d.textContent=t; logEl.prepend(d); }
 const logEl = document.getElementById("log");
+function log(t){ const d=document.createElement("div"); d.textContent=t; logEl.prepend(d); }
 
-// ========= SPOTS ===========
+// SPOTS
 const spotsPercent = [
   {x:0.18,y:0.16},
   {x:0.36,y:0.22},
@@ -114,27 +115,28 @@ const spotsPercent = [
 let spots = [];
 let towers = new Array(6).fill(null);
 
-// ========= PATH ============
+// PATH
 const pathPercent = [
-  {x:0.12,y:0.12},{x:0.24,y:0.18},{x:0.36,y:0.28},{x:0.48,y:0.38},
-  {x:0.60,y:0.48},{x:0.68,y:0.58},{x:0.78,y:0.70},{x:0.88,y:0.78}
+  {x:0.12,y:0.12},{x:0.24,y:0.18},{x:0.36,y:0.28},
+  {x:0.48,y:0.38},{x:0.60,y:0.48},{x:0.68,y:0.58},
+  {x:0.78,y:0.70},{x:0.88,y:0.78}
 ];
 function pct(p){ return {x:Math.round(p.x*W), y:Math.round(p.y*H)}; }
 
 let enemies = [];
 const enemySize = 64;
 
-// ================= INIT ==================
+// INIT
 function init(){
   spots = spotsPercent.map(p=>pct(p));
+  const list = document.getElementById("spots-list");
+  list.innerHTML = "";
 
-  const spotsList = document.getElementById("spots-list");
-  spotsList.innerHTML = "";
   spots.forEach((s,i)=>{
     let div=document.createElement("div");
     div.className="spot";
     div.innerHTML=`<div>Ô ${i+1}</div><div><button data-i="${i}">Đặt</button></div>`;
-    spotsList.appendChild(div);
+    list.appendChild(div);
   });
 
   document.querySelectorAll("#spots-list button").forEach(btn=>{
@@ -143,7 +145,7 @@ function init(){
 
   document.getElementById("select-tower").onclick = ()=>{
     state.selectedTowerIdx = (state.selectedTowerIdx+1)%4;
-    document.getElementById("select-tower").textContent = "Chọn tháp (Lv " + (state.selectedTowerIdx+1) + ")";
+    document.getElementById("select-tower").textContent = "Chọn tháp (Lv" + (state.selectedTowerIdx+1) + ")";
   };
 
   document.getElementById("upgrade-btn").onclick = upgradeTower;
@@ -154,13 +156,12 @@ function init(){
   };
 
   document.getElementById("start-wave").onclick = startWave;
-
   canvas.onclick = onCanvasClick;
 
   requestAnimationFrame(loop);
 }
 
-// ============ GAME FUNCTIONS ==============
+// COST
 function getCost(lv){ return [0,70,90,120,160][lv]; }
 
 function placeTower(i){
@@ -169,61 +170,51 @@ function placeTower(i){
   towers[i] = {level:1,selected:false};
   state.money -= getCost(1);
   updateHUD();
-  log("Đặt tháp ô " + (i+1));
+  log("Đặt tháp ô "+(i+1));
 }
 
 function upgradeTower(){
   let idx = towers.findIndex(t=>t && t.selected);
   if(idx<0){ log("Chưa chọn tháp"); return; }
-
   let t = towers[idx];
-  if(t.level>=4){ log("Đã tối đa"); return; }
-
+  if(t.level>=4){ log("Max cấp"); return; }
   let cost = 40*t.level;
-  if(state.money < cost){ log("Không đủ tiền"); return; }
-
-  t.level++;
-  state.money -= cost;
+  if(state.money<cost){ log("Không đủ tiền"); return; }
+  t.level++; state.money -= cost;
   updateHUD();
-  log(`Upgrade ô ${idx+1} → Lv ${t.level}`);
+  log(`Upgrade ô ${idx+1} → Lv${t.level}`);
 }
 
 function onCanvasClick(e){
   const rect = canvas.getBoundingClientRect();
-  let mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let mx=e.clientX-rect.left, my=e.clientY-rect.top;
 
-  let clicked = -1;
-  spots.forEach((s,i)=>{ if(Math.hypot(mx-s.x,my-s.y)<40) clicked=i; });
-
-  if(clicked === -1) return;
+  let clicked=-1;
+  spots.forEach((s,i)=>{
+    if(Math.hypot(mx-s.x,my-s.y)<40) clicked=i;
+  });
+  if(clicked<0) return;
 
   if(state.sellMode){
     if(towers[clicked]){
       state.money += Math.floor(getCost(towers[clicked].level)*0.5);
-      towers[clicked]=null;
-      updateHUD();
-      log("Đã bán tháp");
+      towers[clicked]=null; updateHUD(); log("Bán tháp");
     }
     return;
   }
 
   towers.forEach(t=>{ if(t) t.selected=false; });
 
-  if(towers[clicked]){
-    towers[clicked].selected = true;
-    log("Chọn tháp ô "+(clicked+1));
-  } else {
-    placeTower(clicked);
-  }
+  if(towers[clicked]){ towers[clicked].selected=true; log("Chọn tháp "+(clicked+1)); }
+  else placeTower(clicked);
 }
 
-// ================== WAVE =======================
-let spawnTimer = 0, spawnQueue=[];
+// WAVE
+let spawnTimer=0, spawnQueue=[];
 function startWave(){
   if(state.running) return;
   state.running = true;
-  state.wave++;
-  updateHUD();
+  state.wave++; updateHUD();
 
   let count = 6 + Math.floor(state.wave*1.2);
   spawnQueue = [];
@@ -234,10 +225,9 @@ function startWave(){
       src: ASSETS.enemies[i%4]
     });
   }
-  log("Wave " + state.wave + " bắt đầu");
+  log("Wave "+state.wave+" bắt đầu");
 }
 
-// ================= UPDATE ======================
 function update(dt){
   if(state.running){
     spawnTimer -= dt;
@@ -245,12 +235,13 @@ function update(dt){
       const e=spawnQueue.shift();
       const start=pct(pathPercent[0]);
       enemies.push({
-        hp:e.hp,maxHp:e.hp,speed:e.speed,progress:0,x:start.x,y:start.y,src:e.src
+        hp:e.hp,maxHp:e.hp,speed:e.speed,progress:0,
+        x:start.x,y:start.y,src:e.src
       });
-      spawnTimer = 0.8;
+      spawnTimer=0.8;
     }
     if(spawnQueue.length===0 && enemies.length===0){
-      state.running = false;
+      state.running=false;
       state.money += 30 + state.wave*6;
       updateHUD();
       log("Wave hoàn thành");
@@ -275,19 +266,17 @@ function update(dt){
     let d2=pct(pathPercent[next2]);
     let p=en.progress-seg2;
 
-    en.x = s2.x + (d2.x-s2.x)*p;
-    en.y = s2.y + (d2.y-s2.y)*p;
+    en.x=s2.x+(d2.x-s2.x)*p;
+    en.y=s2.y+(d2.y-s2.y)*p;
 
     if(en.progress >= pathPercent.length-1){
-      state.hp--;
-      enemies.splice(i,1);
-      updateHUD();
-      log("Quái vào nhà! HP -1");
-      if(state.hp<=0){ reset(); }
+      state.hp--; enemies.splice(i,1);
+      updateHUD(); log("Quái vào nhà! HP -1");
+      if(state.hp<=0) reset();
     }
   }
 
-  // Towers shoot
+  // Towers attack
   towers.forEach((t,i)=>{
     if(!t) return;
     let pos=spots[i];
@@ -298,7 +287,7 @@ function update(dt){
       let target=null, best=1e9;
       enemies.forEach(en=>{
         let d=Math.hypot(en.x-pos.x,en.y-pos.y);
-        if(d<range && d<best){ best=d; target=en;}
+        if(d<range && d<best){ best=d; target=en; }
       });
 
       if(target){
@@ -308,8 +297,7 @@ function update(dt){
 
         if(target.hp<=0){
           enemies.splice(enemies.indexOf(target),1);
-          state.money+=10;
-          updateHUD();
+          state.money+=10; updateHUD();
           log("Quái chết +10 tiền");
         }
       }
@@ -317,10 +305,8 @@ function update(dt){
   });
 }
 
-// ================= DRAW ========================
 function draw(){
   ctx.clearRect(0,0,W,H);
-
   ctx.drawImage(imgs[ASSETS.map],0,0,W,H);
 
   spots.forEach((s,i)=>{
@@ -331,8 +317,8 @@ function draw(){
 
     let t=towers[i];
     if(t){
-      let img=imgs[ ASSETS.towers[t.level-1] ];
-      let w=img.width*0.6, h=img.height*0.6;
+      let img=imgs[ASSETS.towers[t.level-1]];
+      let w=img.width*0.55, h=img.height*0.55;
       ctx.drawImage(img,s.x-w/2,s.y-h/2-6,w,h);
 
       if(t.selected){
@@ -365,16 +351,14 @@ function draw(){
   ctx.fillText("Wave: "+state.wave,160,30);
 }
 
-// ================= LOOP ========================
-let last = performance.now();
 function loop(now){
-  const dt=(now-last)/1000; last=now;
-  if(loaded===totalImgs) update(dt);
+  const dt = (now-(loop.last||now))/1000;
+  loop.last = now;
+  if(loaded===total) update(dt);
   draw();
   requestAnimationFrame(loop);
 }
 
-// ================= UTILS =======================
 function updateHUD(){
   document.getElementById("money").textContent=state.money;
   document.getElementById("hp").textContent=state.hp;
@@ -382,12 +366,9 @@ function updateHUD(){
 }
 
 function reset(){
-  state.hp=10;
-  state.money=150;
-  state.wave=0;
+  state.hp=10; state.money=150; state.wave=0;
   towers=new Array(6).fill(null);
-  enemies=[];
-  updateHUD();
+  enemies=[]; updateHUD();
   log("Reset game");
 }
 </script>
