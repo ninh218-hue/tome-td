@@ -3,20 +3,25 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Anime Tower Defense — jsDelivr CDN</title>
+<title>Anime Tower Defense — CDN + Projectiles</title>
 <style>
-  body{margin:0;background:#051022;color:#eaf6ff;font-family:Inter,Arial}
+  :root{--bg:#051022;--panel:rgba(255,255,255,0.02);--muted:#9aa6b2}
+  html,body{height:100%;}
+  body{margin:0;background:var(--bg);color:#eaf6ff;font-family:Inter,Arial,Helvetica,sans-serif}
   .wrap{max-width:1100px;margin:18px auto;display:flex;gap:16px;padding:12px}
-  .panel{background:rgba(255,255,255,0.02);padding:12px;border-radius:10px}
-  #game{background:#000;display:block;border-radius:8px}
+  .panel{background:var(--panel);padding:12px;border-radius:10px}
+  #game{background:#000;display:block;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,0.6)}
   .sidebar{width:320px}
   .stat{display:flex;gap:8px;margin-bottom:10px}
   .stat div{flex:1;background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;text-align:center}
   button{background:#10b981;border:none;color:#022;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600}
-  .muted{color:#9aa6b2;font-size:13px}
+  .muted{color:var(--muted);font-size:13px}
   .spots{margin-top:10px}
   .spot{padding:6px;background:rgba(255,255,255,0.02);border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
-  .log{margin-top:10px;max-height:220px;overflow:auto;padding:8px;border-radius:6px;background:rgba(255,255,255,0.01);font-size:13px}
+  .log{margin-top:10px;max-height:260px;overflow:auto;padding:8px;border-radius:6px;background:rgba(255,255,255,0.01);font-size:13px}
+  h3{margin:0 0 8px 0}
+  /* small responsive */
+  @media(max-width:1150px){.wrap{max-width:98vw}.sidebar{display:none}}
 </style>
 </head>
 <body>
@@ -26,7 +31,7 @@
   </div>
 
   <div class="panel sidebar">
-    <h3>Anime Tower Defense — CDN Version</h3>
+    <h3>Anime Tower Defense — CDN</h3>
     <div class="stat">
       <div>Tiền<br><strong id="money">150</strong></div>
       <div>HP<br><strong id="hp">10</strong></div>
@@ -58,319 +63,276 @@
 </div>
 
 <script>
-// ===========================
-// LOAD PNG TỪ jsDelivr CDN
-// ===========================
-const CDN = "https://cdn.jsdelivr.net/gh/ninh218-hue/tome-td/assets/";
-
+// -----------------------------
+// Config: CDN base (jsDelivr)
+// -----------------------------
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/ninh218-hue/tome-td/assets/';
 const ASSETS = {
-  map: CDN + "map.png",
+  map: CDN_BASE + 'map.png',
   towers: [
-    CDN + "tower_lv1.png",
-    CDN + "tower_lv2.png",
-    CDN + "tower_lv3.png",
-    CDN + "tower_lv4.png"
+    CDN_BASE + 'tower_lv1.png',
+    CDN_BASE + 'tower_lv2.png',
+    CDN_BASE + 'tower_lv3.png',
+    CDN_BASE + 'tower_lv4.png'
   ],
   enemies: [
-    CDN + "enemy_1.png",
-    CDN + "enemy_2.png",
-    CDN + "enemy_3.png",
-    CDN + "enemy_4.png"
+    CDN_BASE + 'enemy_1.png',
+    CDN_BASE + 'enemy_2.png',
+    CDN_BASE + 'enemy_3.png',
+    CDN_BASE + 'enemy_4.png'
   ]
 };
 
-// ===========================
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+// -----------------------------
+// Canvas + basic state
+// -----------------------------
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
 
-let imgs = {};
-let loaded = 0, total = 0;
+let images = {};
+let loaded = 0, totalToLoad = 0;
+const loadList = [ASSETS.map, ...ASSETS.towers, ...ASSETS.enemies];
+totalToLoad = loadList.length;
 
-const toLoad = [ASSETS.map, ...ASSETS.towers, ...ASSETS.enemies];
-total = toLoad.length;
-
-toLoad.forEach(src => {
+loadList.forEach(src => {
   const img = new Image();
-  img.crossOrigin = "anonymous";
+  img.crossOrigin = 'anonymous';
   img.src = src;
-  img.onload = () => { imgs[src] = img; loaded++; if(loaded===total) init(); };
-  img.onerror = () => { console.error("Load lỗi:", src); loaded++; if(loaded===total) init(); };
+  img.onload = () => { images[src] = img; loaded++; if(loaded === totalToLoad) startGame(); };
+  img.onerror = () => { console.error('Load lỗi', src); loaded++; if(loaded === totalToLoad) startGame(); };
 });
 
-// GAME STATE
+// Game state
 const state = { money:150, hp:10, wave:0, running:false, sellMode:false, selectedTowerIdx:0 };
-const logEl = document.getElementById("log");
-function log(t){ const d=document.createElement("div"); d.textContent=t; logEl.prepend(d); }
+const logEl = document.getElementById('log');
+function log(msg){ const d=document.createElement('div'); d.textContent=msg; logEl.prepend(d); }
 
-// SPOTS
+// Map spots as percent coords (same as previous)
 const spotsPercent = [
-  {x:0.18,y:0.16},
-  {x:0.36,y:0.22},
-  {x:0.60,y:0.28},
-  {x:0.20,y:0.52},
-  {x:0.44,y:0.68},
-  {x:0.78,y:0.84}
+  {x:0.18,y:0.16}, {x:0.36,y:0.22}, {x:0.60,y:0.28},
+  {x:0.20,y:0.52}, {x:0.44,y:0.68}, {x:0.78,y:0.84}
 ];
 let spots = [];
-let towers = new Array(6).fill(null);
+let towers = new Array(spotsPercent.length).fill(null);
 
-// PATH
 const pathPercent = [
-  {x:0.12,y:0.12},{x:0.24,y:0.18},{x:0.36,y:0.28},
-  {x:0.48,y:0.38},{x:0.60,y:0.48},{x:0.68,y:0.58},
-  {x:0.78,y:0.70},{x:0.88,y:0.78}
+  {x:0.12,y:0.12},{x:0.24,y:0.18},{x:0.36,y:0.28},{x:0.48,y:0.38},
+  {x:0.60,y:0.48},{x:0.68,y:0.58},{x:0.78,y:0.70},{x:0.88,y:0.78}
 ];
-function pct(p){ return {x:Math.round(p.x*W), y:Math.round(p.y*H)}; }
+function pct(p){ return { x: Math.round(p.x * W), y: Math.round(p.y * H) }; }
 
 let enemies = [];
-const enemySize = 64;
+const ENEMY_SIZE = 64;
 
-// INIT
-function init(){
-  spots = spotsPercent.map(p=>pct(p));
-  const list = document.getElementById("spots-list");
-  list.innerHTML = "";
+// New systems
+let projectiles = []; // {x,y,txRef,dmg,color,size,speed}
+let explosions = []; // {x,y,t}
 
+// -----------------------------
+// Start / init
+// -----------------------------
+function startGame(){
+  // compute spots
+  spots = spotsPercent.map(p => pct(p));
+  // populate UI spots list
+  const spotsList = document.getElementById('spots-list'); spotsList.innerHTML = '';
   spots.forEach((s,i)=>{
-    let div=document.createElement("div");
-    div.className="spot";
-    div.innerHTML=`<div>Ô ${i+1}</div><div><button data-i="${i}">Đặt</button></div>`;
-    list.appendChild(div);
+    const el = document.createElement('div'); el.className='spot';
+    el.innerHTML = `<div>Ô ${i+1}</div><div><button data-i="${i}">Đặt</button></div>`;
+    spotsList.appendChild(el);
   });
+  document.querySelectorAll('#spots-list button').forEach(b=>{ b.onclick = ()=> placeTower(Number(b.dataset.i)); });
 
-  document.querySelectorAll("#spots-list button").forEach(btn=>{
-    btn.onclick = ()=> placeTower(Number(btn.dataset.i));
-  });
-
-  document.getElementById("select-tower").onclick = ()=>{
-    state.selectedTowerIdx = (state.selectedTowerIdx+1)%4;
-    document.getElementById("select-tower").textContent = "Chọn tháp (Lv" + (state.selectedTowerIdx+1) + ")";
+  // buttons
+  document.getElementById('select-tower').onclick = ()=>{
+    state.selectedTowerIdx = (state.selectedTowerIdx+1) % ASSETS.towers.length;
+    document.getElementById('select-tower').textContent = 'Chọn tháp (Lv' + (state.selectedTowerIdx+1) + ')';
   };
+  document.getElementById('upgrade-btn').onclick = upgradeSelectedTower;
+  document.getElementById('start-wave').onclick = startWave;
+  document.getElementById('sell-mode').onclick = ()=>{ state.sellMode = !state.sellMode; document.getElementById('sell-mode').textContent = state.sellMode ? 'Đang chế độ bán' : 'Bật chế độ bán'; };
 
-  document.getElementById("upgrade-btn").onclick = upgradeTower;
-  document.getElementById("sell-mode").onclick = ()=>{
-    state.sellMode = !state.sellMode;
-    document.getElementById("sell-mode").textContent =
-      state.sellMode ? "Đang chế độ bán" : "Bật chế độ bán";
-  };
-
-  document.getElementById("start-wave").onclick = startWave;
   canvas.onclick = onCanvasClick;
 
+  updateHUD();
   requestAnimationFrame(loop);
+  log('Assets loaded — game ready');
 }
 
-// COST
-function getCost(lv){ return [0,70,90,120,160][lv]; }
+// -----------------------------
+// Helpers
+// -----------------------------
+function updateHUD(){ document.getElementById('money').textContent=state.money; document.getElementById('hp').textContent=state.hp; document.getElementById('wave').textContent=state.wave; }
+function getTowerCost(lv){ return [0,70,90,120,160][lv] || 70; }
 
+// -----------------------------
+// Tower placement + upgrade
+// -----------------------------
 function placeTower(i){
-  if(towers[i]){ log("Ô này đã có tháp"); return; }
-  if(state.money < getCost(1)){ log("Không đủ tiền"); return; }
-  towers[i] = {level:1,selected:false};
-  state.money -= getCost(1);
-  updateHUD();
-  log("Đặt tháp ô "+(i+1));
+  if(towers[i]){ log('Ô này đã có tháp'); return; }
+  const cost = getTowerCost(1);
+  if(state.money < cost){ log('Không đủ tiền'); return; }
+  towers[i] = { level:1, selected:false };
+  state.money -= cost; updateHUD(); log('Đặt tháp ô '+(i+1)+' (-'+cost+')');
 }
 
-function upgradeTower(){
-  let idx = towers.findIndex(t=>t && t.selected);
-  if(idx<0){ log("Chưa chọn tháp"); return; }
-  let t = towers[idx];
-  if(t.level>=4){ log("Max cấp"); return; }
-  let cost = 40*t.level;
-  if(state.money<cost){ log("Không đủ tiền"); return; }
-  t.level++; state.money -= cost;
-  updateHUD();
-  log(`Upgrade ô ${idx+1} → Lv${t.level}`);
+function upgradeSelectedTower(){
+  const idx = towers.findIndex(t => t && t.selected);
+  if(idx === -1){ log('Chưa chọn tháp'); return; }
+  const t = towers[idx];
+  if(t.level >= 4){ log('Đã tối đa'); return; }
+  const cost = 40 * t.level;
+  if(state.money < cost){ log('Không đủ tiền'); return; }
+  t.level++; state.money -= cost; updateHUD(); log('Nâng cấp ô '+(idx+1)+' → Lv '+t.level+' (-'+cost+')');
 }
 
 function onCanvasClick(e){
-  const rect = canvas.getBoundingClientRect();
-  let mx=e.clientX-rect.left, my=e.clientY-rect.top;
-
-  let clicked=-1;
-  spots.forEach((s,i)=>{
-    if(Math.hypot(mx-s.x,my-s.y)<40) clicked=i;
-  });
-  if(clicked<0) return;
-
-  if(state.sellMode){
-    if(towers[clicked]){
-      state.money += Math.floor(getCost(towers[clicked].level)*0.5);
-      towers[clicked]=null; updateHUD(); log("Bán tháp");
-    }
-    return;
-  }
-
+  const rect = canvas.getBoundingClientRect(); const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let found = -1; spots.forEach((s,i)=>{ if(Math.hypot(mx-s.x,my-s.y) < 40) found = i; });
+  if(found === -1) return;
+  if(state.sellMode){ if(towers[found]){ state.money += Math.floor(getTowerCost(towers[found].level) * 0.5); towers[found]=null; updateHUD(); log('Đã bán tháp ô '+(found+1)); } return; }
   towers.forEach(t=>{ if(t) t.selected=false; });
-
-  if(towers[clicked]){ towers[clicked].selected=true; log("Chọn tháp "+(clicked+1)); }
-  else placeTower(clicked);
+  if(towers[found]){ towers[found].selected = true; log('Chọn tháp ô '+(found+1)+' (Lv '+towers[found].level+')'); } else { placeTower(found); }
 }
 
-// WAVE
-let spawnTimer=0, spawnQueue=[];
-function startWave(){
-  if(state.running) return;
-  state.running = true;
-  state.wave++; updateHUD();
+// -----------------------------
+// Wave spawn
+// -----------------------------
+let spawnQueue = []; let spawnTimer = 0;
+function startWave(){ if(state.running) return; state.running=true; state.wave++; updateHUD();
+  spawnQueue = []; const count = 6 + Math.floor(state.wave * 1.2);
+  for(let i=0;i<count;i++){ spawnQueue.push({ hp:20 + state.wave*8, speed:0.6 + state.wave*0.03, src: ASSETS.enemies[i % ASSETS.enemies.length] }); }
+  log('Wave '+state.wave+' bắt đầu ('+spawnQueue.length+' quái)'); }
 
-  let count = 6 + Math.floor(state.wave*1.2);
-  spawnQueue = [];
-  for(let i=0;i<count;i++){
-    spawnQueue.push({
-      hp:20+state.wave*8,
-      speed:0.6+state.wave*0.03,
-      src: ASSETS.enemies[i%4]
-    });
-  }
-  log("Wave "+state.wave+" bắt đầu");
-}
+// -----------------------------
+// Projectiles + Explosions systems
+// -----------------------------
+// projectile: {x,y,txRef,dmg,color,size,speed}
+// explosion: {x,y,t}
+
+// -----------------------------
+// Main update loop
+// -----------------------------
+let last = performance.now();
+function loop(now){ const dt = (now - last)/1000; last = now; update(dt); draw(); requestAnimationFrame(loop); }
 
 function update(dt){
-  if(state.running){
-    spawnTimer -= dt;
-    if(spawnQueue.length>0 && spawnTimer<=0){
-      const e=spawnQueue.shift();
-      const start=pct(pathPercent[0]);
-      enemies.push({
-        hp:e.hp,maxHp:e.hp,speed:e.speed,progress:0,
-        x:start.x,y:start.y,src:e.src
-      });
-      spawnTimer=0.8;
-    }
-    if(spawnQueue.length===0 && enemies.length===0){
-      state.running=false;
-      state.money += 30 + state.wave*6;
-      updateHUD();
-      log("Wave hoàn thành");
-    }
+  // spawn
+  if(state.running && spawnQueue.length>0){ spawnTimer -= dt; if(spawnTimer <= 0){ const e = spawnQueue.shift(); const start = pct(pathPercent[0]); enemies.push({ hp:e.hp, maxHp:e.hp, speed:e.speed, progress:0, x:start.x, y:start.y, src:e.src, ring: (e.src === ASSETS.enemies[2]) }); spawnTimer = 0.8; } }
+  else if(state.running && spawnQueue.length===0 && enemies.length===0){ state.running = false; state.money += 30 + state.wave*6; updateHUD(); log('Wave hoàn thành + tiền thưởng'); }
+
+  // move enemies
+  for(let i = enemies.length-1; i>=0; i--){ const en = enemies[i]; const seg = Math.floor(en.progress); const next = Math.min(seg+1, pathPercent.length-1);
+    const s = pct(pathPercent[seg]); const e = pct(pathPercent[next]); const segLen = Math.hypot(e.x - s.x, e.y - s.y) || 1;
+    en.progress += (en.speed * dt * 80) / segLen;
+    const seg2 = Math.floor(en.progress); const next2 = Math.min(seg2+1, pathPercent.length-1);
+    const s2 = pct(pathPercent[seg2]); const e2 = pct(pathPercent[next2]); const p = en.progress - seg2;
+    en.x = s2.x + (e2.x - s2.x) * p; en.y = s2.y + (e2.y - s2.y) * p;
+    if(en.progress >= pathPercent.length-1){ state.hp--; enemies.splice(i,1); updateHUD(); log('Quái lọt vào base! HP -1'); if(state.hp <= 0){ log('Game Over, reset'); resetGame(); } }
   }
 
-  // Move enemies
-  for(let i=enemies.length-1;i>=0;i--){
-    let en=enemies[i];
-    let seg=Math.floor(en.progress);
-    let next=Math.min(seg+1,pathPercent.length-1);
-
-    let s=pct(pathPercent[seg]);
-    let d=pct(pathPercent[next]);
-    let dist=Math.hypot(d.x-s.x,d.y-s.y);
-
-    en.progress += (en.speed*dt*80)/dist;
-
-    let seg2=Math.floor(en.progress);
-    let next2=Math.min(seg2+1,pathPercent.length-1);
-    let s2=pct(pathPercent[seg2]);
-    let d2=pct(pathPercent[next2]);
-    let p=en.progress-seg2;
-
-    en.x=s2.x+(d2.x-s2.x)*p;
-    en.y=s2.y+(d2.y-s2.y)*p;
-
-    if(en.progress >= pathPercent.length-1){
-      state.hp--; enemies.splice(i,1);
-      updateHUD(); log("Quái vào nhà! HP -1");
-      if(state.hp<=0) reset();
-    }
-  }
-
-  // Towers attack
+  // towers attack -> create projectiles
   towers.forEach((t,i)=>{
-    if(!t) return;
-    let pos=spots[i];
-    t.cd=(t.cd||0)-dt;
-    let range=120+(t.level-1)*20;
-
-    if(t.cd<=0){
-      let target=null, best=1e9;
-      enemies.forEach(en=>{
-        let d=Math.hypot(en.x-pos.x,en.y-pos.y);
-        if(d<range && d<best){ best=d; target=en; }
-      });
-
-      if(target){
-        let dmg=12+(t.level-1)*8;
-        target.hp -= dmg;
-        t.cd=0.9/(1+0.08*(t.level-1));
-
-        if(target.hp<=0){
-          enemies.splice(enemies.indexOf(target),1);
-          state.money+=10; updateHUD();
-          log("Quái chết +10 tiền");
-        }
-      }
+    if(!t) return; t.cd = (t.cd||0) - dt; const pos = spots[i]; const range = 120 + (t.level-1)*20;
+    if(t.cd <= 0){ let target = null, best = 1e9; enemies.forEach(en=>{ const d = Math.hypot(en.x - pos.x, en.y - pos.y); if(d < range && d < best){ best = d; target = en; } });
+      if(target){ const dmg = 12 + (t.level-1)*8; const color = ['#60f0ff','#ffe56a','#ff8c42','#ff4b4b'][t.level-1]; const size = 6 + t.level*1.5; const speed = 520 + t.level*60; projectiles.push({ x: pos.x, y: pos.y - 20, txRef: target, dmg, color, size, speed }); t.cd = 0.9 / (1 + 0.08*(t.level-1)); }
     }
   });
+
+  // update projectiles
+  for(let i = projectiles.length-1; i>=0; i--){ const p = projectiles[i]; const tx = p.txRef; if(!tx){ projectiles.splice(i,1); continue; } const dx = tx.x - p.x; const dy = tx.y - p.y; const dist = Math.hypot(dx,dy);
+    if(dist < 10 || !tx){ // hit
+      tx.hp -= p.dmg; explosions.push({ x: tx.x, y: tx.y, t: 0 }); projectiles.splice(i,1);
+      if(tx.hp <= 0){ const idx = enemies.indexOf(tx); if(idx>=0){ enemies.splice(idx,1); state.money += 10; updateHUD(); log('Quái chết +10 tiền'); } }
+      continue;
+    }
+    const vx = (dx / dist) * p.speed * dt; const vy = (dy / dist) * p.speed * dt; p.x += vx; p.y += vy;
+  }
+
+  // update explosions
+  for(let i = explosions.length-1; i>=0; i--){ explosions[i].t += dt; if(explosions[i].t > 0.35) explosions.splice(i,1); }
 }
 
+// -----------------------------
+// Draw: map, path, spots, towers, enemies, projectiles, explosions
+// -----------------------------
 function draw(){
   ctx.clearRect(0,0,W,H);
-  ctx.drawImage(imgs[ASSETS.map],0,0,W,H);
+  // map
+  const mapImg = images[ASSETS.map]; if(mapImg) ctx.drawImage(mapImg, 0, 0, W, H);
+  else { ctx.fillStyle='#001'; ctx.fillRect(0,0,W,H); }
 
+  // soft path overlay for clarity
+  ctx.beginPath(); pathPercent.forEach((p,i)=>{ const pt = pct(p); if(i===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y); }); ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.stroke();
+
+  // spots & towers
   spots.forEach((s,i)=>{
-    ctx.beginPath();
-    ctx.fillStyle="rgba(255,255,255,0.03)";
-    ctx.ellipse(s.x,s.y,34,20,0,0,Math.PI*2);
-    ctx.fill();
+    // spot shadow/plate
+    ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.ellipse(s.x, s.y, 34, 20, 0, 0, Math.PI*2); ctx.fill();
 
-    let t=towers[i];
+    const t = towers[i];
     if(t){
-      let img=imgs[ASSETS.towers[t.level-1]];
-      let w=img.width*0.55, h=img.height*0.55;
-      ctx.drawImage(img,s.x-w/2,s.y-h/2-6,w,h);
+      // tower shadow
+      ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.ellipse(s.x, s.y + 28, 34, 12, 0, 0, Math.PI*2); ctx.fill();
 
-      if(t.selected){
-        ctx.beginPath();
-        ctx.strokeStyle="rgba(255,255,255,0.7)";
-        ctx.lineWidth=2;
-        ctx.ellipse(s.x,s.y,42,26,0,0,Math.PI*2);
-        ctx.stroke();
-      }
+      // draw tower image height fixed to 80px
+      const img = images[ ASSETS.towers[t.level - 1] ];
+      if(img){ const targetH = 80; const ratio = img.width / img.height; const h = targetH; const w = targetH * ratio; ctx.drawImage(img, s.x - w/2, s.y - h + 12, w, h); }
+
+      // selection halo
+      if(t.selected){ ctx.beginPath(); ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2; ctx.ellipse(s.x, s.y, 44, 28, 0,0,Math.PI*2); ctx.stroke(); }
     }
   });
 
+  // enemies
   enemies.forEach(en=>{
-    let img=imgs[en.src];
-    ctx.drawImage(img,en.x-enemySize/2,en.y-enemySize/2,enemySize,enemySize);
+    // enemy shadow
+    ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.ellipse(en.x, en.y + 24, 26, 10, 0,0,Math.PI*2); ctx.fill();
 
-    let pct=en.hp/en.maxHp;
-    ctx.fillStyle="rgba(0,0,0,0.6)";
-    ctx.fillRect(en.x-24,en.y-36,48,6);
-    ctx.fillStyle="rgba(16,185,129,0.95)";
-    ctx.fillRect(en.x-24,en.y-36,48*pct,6);
+    const img = images[en.src]; if(img) ctx.drawImage(img, en.x - ENEMY_SIZE/2, en.y - ENEMY_SIZE/2, ENEMY_SIZE, ENEMY_SIZE);
+
+    // hp bar
+    const pct = Math.max(0, en.hp / en.maxHp);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(en.x - 24, en.y - 36, 48, 6);
+    ctx.fillStyle = 'rgba(16,185,129,0.95)'; ctx.fillRect(en.x - 24, en.y - 36, 48 * pct, 6);
+
+    // boss ring effect
+    if(en.ring){ ctx.beginPath(); const t = (performance.now()%1000)/1000; ctx.strokeStyle = 'rgba(120,200,255,0.25)'; ctx.lineWidth = 3; ctx.arc(en.x, en.y, 40 + 6*Math.sin(t*2*Math.PI), 0, Math.PI*2); ctx.stroke(); }
   });
 
-  ctx.fillStyle='rgba(0,0,0,0.25)';
-  ctx.fillRect(8,8,220,34);
-  ctx.fillStyle='#cfefff';
-  ctx.font='13px Inter';
-  ctx.fillText("Tiền: "+state.money,16,30);
-  ctx.fillText("HP: "+state.hp,110,30);
-  ctx.fillText("Wave: "+state.wave,160,30);
+  // projectiles
+  projectiles.forEach(p=>{
+    ctx.beginPath(); ctx.fillStyle = p.color; ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+    // light trail
+    ctx.globalAlpha = 0.35; ctx.fillStyle = p.color; ctx.fillRect(p.x - (p.size/2), p.y - (p.size/2), p.size*0.8, p.size*0.8); ctx.globalAlpha = 1;
+  });
+
+  // explosions
+  explosions.forEach(ex=>{
+    const t = ex.t; const size = 8 + 48 * t; ctx.beginPath(); ctx.strokeStyle = 'rgba(255,210,90,' + (1 - t*2) + ')'; ctx.lineWidth = 2; ctx.arc(ex.x, ex.y, size, 0, Math.PI*2); ctx.stroke();
+  });
+
+  // HUD small overlay
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(8,8,240,34);
+  ctx.fillStyle = '#cfefff'; ctx.font = '13px Inter'; ctx.textAlign = 'left';
+  ctx.fillText('Tiền: ' + state.money, 16, 30); ctx.fillText('HP: ' + state.hp, 110, 30); ctx.fillText('Wave: ' + state.wave, 170, 30);
 }
 
-function loop(now){
-  const dt = (now-(loop.last||now))/1000;
-  loop.last = now;
-  if(loaded===total) update(dt);
-  draw();
-  requestAnimationFrame(loop);
-}
+// -----------------------------
+// Reset
+// -----------------------------
+function resetGame(){ state.hp = 10; state.money = 150; state.wave = 0; towers = new Array(spots.length).fill(null); enemies = []; projectiles = []; explosions = []; updateHUD(); log('Reset game'); }
 
-function updateHUD(){
-  document.getElementById("money").textContent=state.money;
-  document.getElementById("hp").textContent=state.hp;
-  document.getElementById("wave").textContent=state.wave;
-}
+// -----------------------------
+// Utilities
+// -----------------------------
+function pct(p){ return { x: Math.round(p.x * W), y: Math.round(p.y * H) }; }
 
-function reset(){
-  state.hp=10; state.money=150; state.wave=0;
-  towers=new Array(6).fill(null);
-  enemies=[]; updateHUD();
-  log("Reset game");
-}
+// -----------------------------
+// Start of file - export minimal helper to window for debug
+// -----------------------------
+window.__td = { state };
 </script>
 </body>
 </html>
